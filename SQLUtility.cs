@@ -64,10 +64,14 @@ namespace CPUFramework
             string msgend = "";
             if (msg.Contains(prefix) == false)
             {
-                if (msg.Contains("u_"))
+                if (msg.Contains("c_"))
+                {
+                    prefix = "c_";
+                }
+                else if (msg.Contains("u_"))
                 { 
                     prefix = "u_";
-                    msgend = " must be unique";
+                    msgend = " must be unique.";
                 }
                 else if (msg.Contains("f_"))
                 {
