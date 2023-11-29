@@ -1,6 +1,7 @@
 ﻿using System.Data;
 using System.Data.SqlClient;
 using System.Diagnostics;
+using System.Reflection.Metadata;
 using System.Text;
 
 namespace CPUFramework
@@ -23,15 +24,27 @@ namespace CPUFramework
             return cmd;
         }
 
+
+
         public static DataTable GetDataTable(SqlCommand cmd)
         {
             return DoExecuteSQL(cmd, true);
         }
 
-        public static void SaveDataRow(DataRow row, string sprocname)
+        public static void SaveDataTable(DataTable dt, string sprocname)
+        {
+            var rows = dt.Select("", "", DataViewRowState.Added | DataViewRowState.ModifiedCurrent);
+            foreach (DataRow r in rows)
+            {
+                SaveDataRow(r, sprocname, false);
+            }
+            dt.AcceptChanges();
+        }
+
+        public static SqlCommand SaveDataRow(DataRow row, string sprocname, bool acceptchanges = true)
         {
             SqlCommand cmd = GetSQLCommand(sprocname);
-            foreach(DataColumn col in row.Table.Columns)
+            foreach (DataColumn col in row.Table.Columns)
             {
                 string paramname = $"@{col.ColumnName}";
                 if (cmd.Parameters.Contains(paramname))
@@ -40,10 +53,9 @@ namespace CPUFramework
                 }
             }
             DoExecuteSQL(cmd, false);
-
             foreach (SqlParameter p in cmd.Parameters)
             {
-                if(p.Direction == ParameterDirection.InputOutput)
+                if (p.Direction == ParameterDirection.InputOutput)
                 {
                     string colname = p.ParameterName.Substring(1);
                     if (row.Table.Columns.Contains(colname))
@@ -52,6 +64,12 @@ namespace CPUFramework
                     }
                 }
             }
+            if (acceptchanges == true)
+            {
+                row.Table.AcceptChanges();
+            }
+            return cmd;
+
         }
 
         private static DataTable DoExecuteSQL(SqlCommand cmd, bool loadtable)
@@ -81,7 +99,7 @@ namespace CPUFramework
                     throw new Exception(cmd.CommandText + ": " + ex.Message, ex);
                 }
             }
-            SetAllColumnsAllowNull(dt);
+            SetAllColumnProperties(dt);
             return dt;
         }
 
@@ -99,6 +117,7 @@ namespace CPUFramework
                         {
                             returnvalue = (int)p.Value;
                         }
+
 
                     }
                     else if (p.ParameterName.ToLower() == "@message")
@@ -154,6 +173,7 @@ namespace CPUFramework
             string origmsg = msg;
             string prefix = "ck_";
             string msgend = "";
+            string notnullprefix = "Cannot insert the value NULL into column '";
             if (msg.Contains(prefix) == false)
             {
                 if (msg.Contains("c_"))
@@ -161,13 +181,18 @@ namespace CPUFramework
                     prefix = "c_";
                 }
                 else if (msg.Contains("u_"))
-                { 
+                {
                     prefix = "u_";
                     msgend = " must be unique.";
                 }
                 else if (msg.Contains("f_"))
                 {
                     prefix = "f_";
+                }
+                else if (msg.Contains(notnullprefix))
+                {
+                    prefix = notnullprefix;
+                    msgend = " cannot be blank";
                 }
             }
             if (msg.Contains(prefix))
@@ -215,12 +240,51 @@ namespace CPUFramework
             return n;
         }
 
-        private static void SetAllColumnsAllowNull(DataTable dt)
+        private static void SetAllColumnProperties(DataTable dt)
         {
             foreach (DataColumn c in dt.Columns)
             {
                 c.AllowDBNull = true;
+                c.AutoIncrement = false;
             }
+        }
+
+        public static int GetValueFromFirstRowAsInt(DataTable dt, string columnname)
+        {
+            int value = 0;
+            if (dt.Rows.Count > 0)
+            {
+                DataRow r = dt.Rows[0];
+                if (r[columnname] != null && r[columnname] is int)
+                {
+                    value = (int)r[columnname];
+                }
+            }
+            return value;
+        }
+
+        public static string GetValueFromFirstRowAsString(DataTable dt, string columnname)
+        {
+            string value = "";
+            if (dt.Rows.Count > 0)
+            {
+                DataRow r = dt.Rows[0];
+                if (r[columnname] != null && r[columnname] is string)
+                {
+                    value = (string)r[columnname];
+                }
+            }
+            return value;
+        }
+
+        public static bool TableHasChanges(DataTable dt)
+        {
+            bool b = false;
+            if (dt.GetChanges() != null)
+            {
+                b = true;
+            }
+            return b;
         }
 
         public static string GetSQL(SqlCommand cmd)
@@ -276,6 +340,38 @@ namespace CPUFramework
                 }
             }
         }
+        public static int GetIntReturnValueFromSproc(SqlParameterCollection parameters, string parametername)
+        {
+
+            int returnvalue = 0;
+            foreach (SqlParameter param in parameters)
+            {
+                if (param.Direction == ParameterDirection.InputOutput && param.ParameterName == parametername)
+                {
+                    if (param.Value is int)
+                    {
+                        returnvalue = (int)param.Value;
+                    }
+                }
+            }
+            return returnvalue;
+        }
+
+       // public static string GetStringReturnValueFromSproc(SqlParameterCollection parameters, string parametername)
+       // {
+       //     string returnvalue = "";
+       //     foreach(SqlParameter param in parameters)
+       //     {
+       //         if(param.Direction == ParameterDirection.InputOutput && param.ParameterName == parametername)
+       //         {
+       //             if (param.Value is string)
+       //             {
+       //                 returnvalue = param.Value.ToString();
+       //             }
+       //         }
+       //     }
+       //     return returnvalue;
+       // }
     }
 }
 
