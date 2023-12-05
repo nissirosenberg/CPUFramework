@@ -8,7 +8,27 @@ namespace CPUFramework
 {
     public class SQLUtility
     {
-        public static string ConnectionString = "";
+        private static string ConnectionString = "";
+
+        public static void SetConnectionString(string connstring, bool tryopen, string userid = "", string password = "")
+        {
+            ConnectionString = connstring;
+            if (userid != "")
+            {
+                SqlConnectionStringBuilder b = new();
+                b.ConnectionString = ConnectionString;
+                b.UserID = userid;
+                b.Password = password;
+                ConnectionString = b.ConnectionString;
+            }
+            if(tryopen == true)
+            {
+                using (SqlConnection conn = new(ConnectionString))
+                {
+                    conn.Open();
+                }
+            }
+        }
 
         public static SqlCommand GetSQLCommand(string sprocname)
         {
@@ -192,7 +212,7 @@ namespace CPUFramework
                 else if (msg.Contains(notnullprefix))
                 {
                     prefix = notnullprefix;
-                    msgend = " cannot be blank";
+                    msgend = " cannot be blank.";
                 }
             }
             if (msg.Contains(prefix))
@@ -224,7 +244,7 @@ namespace CPUFramework
             return msg;
         }
 
-        public static int GetFirstColumFirstRowValue(string sql)
+        public static int GetFirstColumnFirstRowValue(string sql)
         {
             int n = 0;
 
@@ -294,6 +314,7 @@ namespace CPUFramework
             StringBuilder sb = new();
             if (cmd.Connection != null)
             {
+                sb.AppendLine($"--{cmd.Connection.ConnectionString}");
                 sb.AppendLine($"--{cmd.Connection.DataSource}");
                 sb.AppendLine($"use {cmd.Connection.Database}");
                 sb.AppendLine("go");
