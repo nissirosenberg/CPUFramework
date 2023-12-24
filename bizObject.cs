@@ -6,9 +6,9 @@ using System.Runtime.CompilerServices;
 
 namespace CPUFramework
 {
-    public class bizObject : INotifyPropertyChanged
+    public class bizObject <T>: INotifyPropertyChanged where T: bizObject<T>, new()
     {
-        string _tablename = ""; string _getsproc = ""; string _updatesproc = ""; string _deletesproc = "";
+        string _typename = "";string _tablename = ""; string _getsproc = ""; string _updatesproc = ""; string _deletesproc = "";
         string _primarykeyname = ""; string _primarykeyparamname = "";
         DataTable _datatable = new();
         List<PropertyInfo> _properties = new();
@@ -18,7 +18,8 @@ namespace CPUFramework
         public bizObject()
         {
             Type t = this.GetType();
-            _tablename = t.Name;
+            _typename = t.Name;
+            _tablename = _typename;
             if (_tablename.ToLower().StartsWith("biz")) { _tablename = _tablename.Substring(3); }
             _getsproc = _tablename + "Get";
             _updatesproc = _tablename + "Update";
@@ -40,6 +41,29 @@ namespace CPUFramework
             }
             _datatable = dt;
             return dt;
+        }
+        public List<T> GetList(bool includeblank = false)
+        {
+            List<T> lst = new();
+            
+            SqlCommand cmd = SQLUtility.GetSQLCommand(_getsproc);
+            SQLUtility.SetParameterValue(cmd, "@All", 1);
+            SQLUtility.SetParameterValue(cmd, "@IncludeBlank", includeblank);
+            var dt = SQLUtility.GetDataTable(cmd);
+            return GetListFromDataTable(dt);
+        }
+
+        public List<T> GetListFromDataTable(DataTable dt)
+        {
+            List<T> lst = new();
+            foreach (DataRow dr in dt.Rows)
+            {
+                T obj = new T();
+                obj.LoadProps(dr);
+                lst.Add(obj);
+            }
+            return lst;
+
         }
         private void LoadProps(DataRow dr)
         {
@@ -127,9 +151,19 @@ namespace CPUFramework
             if (prop != null)
             {
                 if (value == DBNull.Value) { value = null; }
-                prop.SetValue(this, value);
+                try
+                {
+                    prop.SetValue(this, value);
+                }
+                catch(Exception ex)
+                {
+                    string msg = $"{_typename}.{prop.Name} is being set to {value?.ToString()} and that is the wrong data type. {ex.Message}";
+                    throw new CPUDevException(msg, ex);
+                }
             }
         }
+
+        protected string GetSprocName { get => _getsproc; }
 
         protected void InvokePropertyChanged([CallerMemberName] string propertyname = "")
         {
